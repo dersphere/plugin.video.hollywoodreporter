@@ -70,7 +70,8 @@ def video_search_result(search_string):
             'is_folder': False,
             'is_playable': True,
             'url': plugin.url_for(
-            'play_video', path=dt.a['href'].replace('/video/', '')),
+                'play_video', path=dt.a['href'].replace('/video/', ''),
+            ),
         })
     return plugin.add_items(items)
 
@@ -148,17 +149,27 @@ def play_video(path):
     log('play_video got rtmp_params: "%s"' % rtmp_params)
 
     def rtmpdump_output(rtmp_params):
-        return (
-            'rtmpdump '
-            '--rtmp "%(rtmp_url)s" '
-            '--app "%(app)s?videoId=%(video_id)s&playerId=%(player_id)s" '
-            '--swfVfy "%(swf_url)s" '
-            '--pageUrl "%(video_page_url)s" '
-            '--conn "B:0" '
-            '--conn "S:%(playpath_full)s" '
-            '--playpath "%(clip)s" '
-            '-o test.flv'
-        ) % rtmp_params
+        if 'brightcove' in rtmp_params['rtmp_url']:
+            return (
+                'rtmpdump '
+                '--rtmp "%(rtmp_url)s" '
+                '--app "%(app)s?videoId=%(video_id)s&playerId=%(player_id)s" '
+                '--swfVfy "%(swf_url)s" '
+                '--pageUrl "%(video_page_url)s" '
+                '--conn "B:0" '
+                '--conn "S:%(playpath_full)s" '
+                '--playpath "%(clip)s" '
+                '-o test.flv'
+            ) % rtmp_params
+        else:
+            return (
+                'rtmpdump '
+                '--rtmp "%(rtmp_url)s" '
+                '--app "%(app_full)s" '
+                '--swfUrl "%(swf_url)s" '
+                '--playpath "%(clip)s" '
+                '-o test.flv'
+            ) % rtmp_params
 
     def xbmc_output(rtmp_params):
         if 'brightcove' in rtmp_params['rtmp_url']:
@@ -190,8 +201,8 @@ def play_video(path):
 def amf_request(video_page_url, player_id, player_key, video_id):
     video_page_url = 'http://c.brightcove.com/services/messagebroker/amf'
     service_id = 'com.brightcove.experience.ExperienceRuntimeFacade'
-    RE_APP = re.compile('rtmp://.+?/(.+)')
-    SWF_URL = ('http://admin.brightcove.com/viewer/'
+    re_app = re.compile('rtmp://.+?/(.+)')
+    swf_url = ('http://admin.brightcove.com/viewer/'
                'us20120810.1250/BrightcoveBootloader.swf')
     if player_key:
         video_page_url += '?playerKey=%s' % player_key
@@ -245,14 +256,14 @@ def amf_request(video_page_url, player_id, player_key, video_id):
     log('amf_request debug: "%s"' % result)
     data = result['programmedContent']['videoPlayer']['mediaDTO']
     rtmp_url, playpath_full = data['FLVFullLengthURL'].split('&', 1)
-    app = RE_APP.search(rtmp_url).group(1)
+    app = re_app.search(rtmp_url).group(1)
     clip = playpath_full.split('&')[0]
     app_full = '%s?%s' % (app, playpath_full.split('&', 1)[1])
     rtmp_params = {
         'rtmp_url': rtmp_url,
         'clip': clip,
         'app': app,
-        'swf_url': SWF_URL,
+        'swf_url': swf_url,
         'playpath_full': playpath_full,
         'video_page_url': video_page_url,
         'player_id': player_id,
