@@ -125,77 +125,78 @@ def play_video(path):
     video_page_url = '%s/video/%s' % (MAIN_URL, path)
     tree = __get_tree(video_page_url)
     player = tree.find('object', {'class': 'BrightcoveExperience'})
-
-    class ParamParser():
-
-        def __init__(self, player):
-            self.player = player
-
-        def get(self, n):
-            v = [p['value'] for p in self.player.findAll() if p['name'] == n]
-            if v:
-                return v[0]
-
-    param_parser = ParamParser(player)
-    player_params = {
-        'video_page_url': video_page_url,
-        'player_id': str(param_parser.get('playerID')),
-        'video_id': str(param_parser.get('videoID')),
-        'player_key': str(param_parser.get('playerKey')),
-    }
-    log('play_video got player_params: "%s"' % player_params)
-
-    rtmp_params = amf_request(**player_params)
-    log('play_video got rtmp_params: "%s"' % rtmp_params)
-
-    def rtmpdump_output(rtmp_params):
-        if 'brightcove' in rtmp_params['rtmp_url']:
-            return (
-                'rtmpdump '
-                '--rtmp "%(rtmp_url)s" '
-                '--app "%(app)s?videoId=%(video_id)s&playerId=%(player_id)s" '
-                '--swfVfy "%(swf_url)s" '
-                '--pageUrl "%(video_page_url)s" '
-                '--conn "B:0" '
-                '--conn "S:%(playpath_full)s" '
-                '--playpath "%(clip)s" '
-                '-o test.flv'
-            ) % rtmp_params
-        else:
-            return (
-                'rtmpdump '
-                '--rtmp "%(rtmp_url)s" '
-                '--app "%(app_full)s" '
-                '--swfUrl "%(swf_url)s" '
-                '--playpath "%(clip)s" '
-                '-o test.flv'
-            ) % rtmp_params
-
-    def xbmc_output(rtmp_params):
-        if 'brightcove' in rtmp_params['rtmp_url']:
-            return (
-                '%(rtmp_url)s '
-                'playpath=%(clip)s '
-                'tcUrl=%(rtmp_url)s '
-                'app=%(app)s '
-                'swfUrl=%(swf_url)s '
-                'pageUrl=%(video_page_url)s '
-                'conn=B:0 '
-                'conn=S:%(playpath_full)s '
-            ) % rtmp_params
-        else:
-            return (
-                '%(rtmp_url)s '
-                'playpath=%(clip)s '
-                'app=%(app_full)s '
-                'swfUrl=%(swf_url)s '
-            ) % rtmp_params
-
-    if plugin._mode is 'xbmc':
-        playback_url = xbmc_output(rtmp_params)
+    if not player:
+        log('play_video could not find brightcove player')
+        re_class = re.compile('emvideo-youtube')
+        youtube_video = tree.find('div', {'class': re_class})
+        if youtube_video:
+            log('play_video found embed youtube video')
+            re_youtube_id = re.compile('http://www.youtube.com/v/(.*?)&')
+            video_obj = youtube_video.find('object')
+            video_id = re_youtube_id.search(video_obj['data']).group(1)
+            playback_url = ('plugin://plugin.video.youtube/'
+                            '?action=play_video&videoid=%s' % video_id)
+            return plugin.set_resolved_url(playback_url)
     else:
-        playback_url = rtmpdump_output(rtmp_params)
-    return plugin.set_resolved_url(playback_url)
+        log('play_video found brightcove player')
+        player_params = {
+            'video_page_url': video_page_url,
+            'player_id': str(player.find('param', name='player_id')['name']),
+            'video_id': str(player.find('param', name='videoID')['name']),
+            'player_key': str(player.find('param', name='playerKey')['name']),
+        }
+        log('play_video got player_params: "%s"' % player_params)
+        rtmp_params = amf_request(**player_params)
+        log('play_video got rtmp_params: "%s"' % rtmp_params)
+
+        def rtmpdump_output(rtmp_params):
+            if 'brightcove' in rtmp_params['rtmp_url']:
+                return (
+                    'rtmpdump '
+                    '--rtmp "%(rtmp_url)s" '
+                    '--app "%(app)s?videoId=%(video_id)s&playerId=%(player_id)s" '
+                    '--swfVfy "%(swf_url)s" '
+                    '--pageUrl "%(video_page_url)s" '
+                    '--conn "B:0" '
+                    '--conn "S:%(playpath_full)s" '
+                    '--playpath "%(clip)s" '
+                    '-o test.flv'
+                ) % rtmp_params
+            else:
+                return (
+                    'rtmpdump '
+                    '--rtmp "%(rtmp_url)s" '
+                    '--app "%(app_full)s" '
+                    '--swfUrl "%(swf_url)s" '
+                    '--playpath "%(clip)s" '
+                    '-o test.flv'
+                ) % rtmp_params
+
+        def xbmc_output(rtmp_params):
+            if 'brightcove' in rtmp_params['rtmp_url']:
+                return (
+                    '%(rtmp_url)s '
+                    'playpath=%(clip)s '
+                    'tcUrl=%(rtmp_url)s '
+                    'app=%(app)s '
+                    'swfUrl=%(swf_url)s '
+                    'pageUrl=%(video_page_url)s '
+                    'conn=B:0 '
+                    'conn=S:%(playpath_full)s '
+                ) % rtmp_params
+            else:
+                return (
+                    '%(rtmp_url)s '
+                    'playpath=%(clip)s '
+                    'app=%(app_full)s '
+                    'swfUrl=%(swf_url)s '
+                ) % rtmp_params
+
+        if plugin._mode is 'xbmc':
+            playback_url = xbmc_output(rtmp_params)
+        else:
+            playback_url = rtmpdump_output(rtmp_params)
+        return plugin.set_resolved_url(playback_url)
 
 
 def amf_request(video_page_url, player_id, player_key, video_id):
