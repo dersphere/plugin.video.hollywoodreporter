@@ -141,9 +141,9 @@ def play_video(path):
         log('play_video found brightcove player')
         player_params = {
             'video_page_url': video_page_url,
-            'player_id': str(player.find('param', name='player_id')['name']),
-            'video_id': str(player.find('param', name='videoID')['name']),
-            'player_key': str(player.find('param', name='playerKey')['name']),
+            'player_id': str(player.find('param', {'name': 'playerID'})['value']),
+            'video_id': str(player.find('param', {'name': 'videoID'})['value']),
+            'player_key': str(player.find('param', {'name': 'playerKey'})['value']),
         }
         log('play_video got player_params: "%s"' % player_params)
         rtmp_params = amf_request(**player_params)
@@ -256,7 +256,9 @@ def amf_request(video_page_url, player_id, player_key, video_id):
     result = service.getDataForExperience('', experience)
     log('amf_request debug: "%s"' % result)
     data = result['programmedContent']['videoPlayer']['mediaDTO']
-    rtmp_url, playpath_full = data['FLVFullLengthURL'].split('&', 1)
+    qualities = sorted(data['renditions'], key=lambda k: k['frameWidth'], reverse=True)
+    best_quality = qualities[0]
+    rtmp_url, playpath_full = best_quality['defaultURL'].split('&', 1)
     app = re_app.search(rtmp_url).group(1)
     clip = playpath_full.split('&')[0]
     app_full = '%s?%s' % (app, playpath_full.split('&', 1)[1])
