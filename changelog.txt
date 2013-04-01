@@ -1,3 +1,7 @@
+0.1.0 (01.04.2013)
+ added translations
+ cosmetics
+
 0.0.4 (05.11.2012)
  support playback of mp4 videos
 
